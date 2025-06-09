@@ -2,7 +2,6 @@ import request from "supertest";
 import app from "../index";
 import * as hfService from "../services/huggingface";
 
-// Mock the getSummary function from huggingface service
 jest.mock("../services/huggingface");
 
 describe("/summarize endpoint", () => {
@@ -11,10 +10,8 @@ describe("/summarize endpoint", () => {
   });
 
   it("Valid Input Test: returns 200 and summary", async () => {
-    // Arrange: mock getSummary to return fixed summary
     (hfService.getSummary as jest.Mock).mockResolvedValue("Fake summary.");
 
-    // Act: send POST request with valid text
     const response = await request(app)
       .post("/summarize")
       .send({ text: "Some sample text." })
@@ -26,13 +23,23 @@ describe("/summarize endpoint", () => {
   });
 
   it("Empty Text Test: returns 400 and error", async () => {
-    const response = await request(app)
-      .post("/summarize")
-      .send({ text: "" })
-      .set("Accept", "application/json");
+    const response = await request(app).post("/summarize").send({ text: "" }).set("Accept", "application/json");
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: "'text' field is required" });
     expect(hfService.getSummary).not.toHaveBeenCalled();
+  });
+
+  it("Service Error Test: returns 500 if getSummary throws error", async () => {
+    (hfService.getSummary as jest.Mock).mockRejectedValue(new Error("Test error"));
+
+    const response = await request(app)
+      .post("/summarize")
+      .send({ text: "Trigger error" })
+      .set("Accept", "application/json");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: "LLM service unavailable" });
+    expect(hfService.getSummary).toHaveBeenCalledTimes(1);
   });
 });
